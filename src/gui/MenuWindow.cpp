@@ -1238,8 +1238,10 @@ void MenuWindow::DrawTestSettings()
     if (ImGui::Button("Show ImGui Demo Window"))
         _gui_state.show_window_demo ^= true;
 
-    ImGui::SliderFloat("Slider 1",
-        &_gui_state.testing.IN_slider1, 0.0f, 0.5f, "%.3f");
+    ImGui::SliderFloat("Time Scale",
+        &_gui_state.testing.IN_slider1, 0.01f, 10.f, "%.3f");
+    _gui_state.testing.IN_slider1 = std::max(_gui_state.testing.IN_slider1, 0.01f);
+    
 
     ImGui::SliderFloat("Slider 2",
         &_gui_state.testing.IN_slider2, 0.0f, 5.0f, "%.3f");

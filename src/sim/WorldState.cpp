@@ -40,8 +40,10 @@ WorldState WorldState::Interpolate(const WorldState& stateA,
 
     interpState.is_interpolated = true;
 
-    interpState.simtime = (1.0f - phase) * stateA.simtime +
-                          (       phase) * stateB.simtime;
+    //interpState.simtime = (1.0f - phase) * stateA.simtime +  // H7per: This is lossy, likes to break with large values.
+    //                      (       phase) * stateB.simtime;   // Sometimes the program crashes due to this, next interp will fail the assert.
+
+    interpState.simtime = stateA.simtime + (stateB.simtime - stateA.simtime) * phase; // H7per: Better version, does multiplication with the smallest integer, keeping error lower.
 
     // NOTE: Player movement state is only partially being interpolated.
     interpState.csgo_mv.m_vecAbsOrigin  =

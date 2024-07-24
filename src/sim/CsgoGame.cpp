@@ -37,6 +37,13 @@ bool CsgoGame::HasBeenStarted() {
     return m_simtime_step_size > 0.0_sec;
 }
 
+void CsgoGame::UpdateTimescale(float simtime_scale)
+{
+    m_realtime_game_tick_interval = std::chrono::nanoseconds{
+        Nanoseconds{ m_simtime_step_size / simtime_scale }
+    };
+}
+
 void CsgoGame::Start(SimTimeDur simtime_step_size, float simtime_scale,
                      const WorldState& initial_worldstate)
 {
@@ -54,7 +61,7 @@ void CsgoGame::Start(SimTimeDur simtime_step_size, float simtime_scale,
         Nanoseconds{ simtime_step_size / simtime_scale }
     };
     m_realtime_game_start = current_realtime;
-
+    m_realtime_last_tick = current_realtime;
     m_prev_finalized_game_tick_id = 0;
     m_prev_finalized_game_tick = initial_worldstate;
     m_inputs_since_prev_finalized_game_tick.clear();
@@ -112,7 +119,7 @@ void CsgoGame::ProcessNewPlayerInput(const PlayerInput::State& new_input)
     for (const PlayerInput::State& other : m_inputs_since_prev_finalized_game_tick)
         assert(new_input.sample_time >= other.sample_time);
 #endif
-
+    
     WallClock::time_point cur_time = new_input.sample_time;
 
     // @Optimization We should drop game ticks if the user's machine struggles
@@ -120,8 +127,13 @@ void CsgoGame::ProcessNewPlayerInput(const PlayerInput::State& new_input)
 
     // Step 1: Find ID of game tick that directly precedes the new player input.
     size_t directly_preceding_game_tick_id = m_prev_finalized_game_tick_id;
-    while (GetGameTickRealTimePoint(directly_preceding_game_tick_id + 1) < cur_time)
+    //while (GetGameTickRealTimePoint(directly_preceding_game_tick_id + 1) < cur_time)
+    //    directly_preceding_game_tick_id++;
+    while (m_realtime_last_tick + m_realtime_game_tick_interval < cur_time)
+    {
         directly_preceding_game_tick_id++;
+        m_realtime_last_tick += m_realtime_game_tick_interval;
+    }
 
     // Step 2: Advance game simulation up to and including directly preceding
     //         game tick, if not already done.
@@ -155,9 +167,12 @@ void CsgoGame::ProcessNewPlayerInput(const PlayerInput::State& new_input)
     predicted_next_game_tick.AdvanceSimulation(m_simtime_step_size,
                                                m_inputs_since_prev_finalized_game_tick);
 
-    WallClock::time_point next_game_tick_timepoint =
-        GetGameTickRealTimePoint(m_prev_finalized_game_tick_id + 1);
+    WallClock::time_point next_game_tick_timepoint = m_realtime_last_tick + m_realtime_game_tick_interval;
 
+
+    printf("current Tick-ID: ");
+    printf( std::to_string(m_prev_finalized_game_tick_id + 1).c_str());
+    printf( "\n");
     // Step 4: Determine current drawable world state by interpolating between
     //         previous drawable world state and the predicted next game tick.
     WorldState cur_drawable_worldstate;
@@ -202,7 +217,7 @@ const WorldState& CsgoGame::GetLatestDrawableWorldState() {
     return m_prev_drawable_worldstate;
 }
 
-WallClock::time_point CsgoGame::GetGameTickRealTimePoint(size_t tick_id)
+WallClock::time_point CsgoGame::GetGameTickRealTimePoint(size_t tick_id) // H7per: This function doesn't work if you use it for the next tick time, if you want changable timescale.
 {
     assert(HasBeenStarted());
     return m_realtime_game_start + tick_id * m_realtime_game_tick_interval;

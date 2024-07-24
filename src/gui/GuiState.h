@@ -200,7 +200,7 @@ public:
     } coll_debug;
 
     struct TestSettings { // Settings that can only be adjusted in Debug builds
-        float IN_slider1 = 0.1f;
+        float IN_slider1 = 1.0f;
         float IN_slider2 = 0.1f;
         float IN_slider3 = 0.0f;
         float IN_slider4 = 0.0f;

@@ -28,6 +28,7 @@ public:
     // Whether a CSGO game has been started using the Start() method
     bool HasBeenStarted();
 
+    void UpdateTimescale(float simtime_scale);
     // (Re-)Starts the game simulation at the given world state with the given
     // parameters. The given simulation time step size must be greater than 0 !
     void Start(SimTimeDur simtime_step_size, float simtime_scale,
@@ -73,6 +74,9 @@ private:
     // Realtime time point of tick 0's worldstate.
     WallClock::time_point m_realtime_game_start;
 
+    // H7per: Needed to allow for switching of timescales.
+    // Using "global time" puts the next tick process point far into the future.
+    WallClock::time_point m_realtime_last_tick;
     // The most recently finalized game tick (The current state of the simulation)
     size_t     m_prev_finalized_game_tick_id; // Incremented each game tick
     WorldState m_prev_finalized_game_tick;

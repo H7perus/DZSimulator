@@ -69,7 +69,7 @@ using namespace Magnum;
 using namespace Math::Literals;
 
 const sim::SimTimeDur SIM_TIME_STEP_SIZE = 1.0_sec / sim::CSGO_TICKRATE;
-const float SIM_TIME_SCALE = 1.0f; // Equivalent to CSGO ConVar "host_timescale"
+//const float SIM_TIME_SCALE = 1.0; // Equivalent to CSGO ConVar "host_timescale"
 
 class DZSimApplication: public Platform::Application {
     public:
@@ -88,6 +88,7 @@ class DZSimApplication: public Platform::Application {
         // members' constructor.
         gui::GuiState _gui_state;
         gui::Gui _gui;
+        float& SIM_TIME_SCALE = _gui_state.testing.IN_slider1;
 
         InputHandler _inputs;
 
@@ -1448,6 +1449,7 @@ void DZSimApplication::DoUpdate()
     if (_csgo_game_sim.HasBeenStarted()) {
         // Send game input to simulation
         auto game_sim_start_time = std::chrono::high_resolution_clock::now();
+        _csgo_game_sim.UpdateTimescale(SIM_TIME_SCALE);
         _csgo_game_sim.ProcessNewPlayerInput(player_inputs);
         auto game_sim_end_time = std::chrono::high_resolution_clock::now();
 
