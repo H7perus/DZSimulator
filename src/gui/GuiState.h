@@ -204,6 +204,7 @@ public:
         float IN_slider2 = 0.1f;
         float IN_slider3 = 0.0f;
         float IN_slider4 = 0.0f;
+        bool IN_subtick = true;
     } testing;
 
 };

@@ -1616,7 +1616,7 @@ void CsgoMovement::CategorizePosition(float frametime)
 
         // Try and move down.
         Trace initial_tr = TryTouchGround(bumpOrigin, point, GetPlayerMins(), GetPlayerMaxs());
-        if (initial_tr.results.DidHit() && initial_tr.results.plane_normal.z() >= g_csgo_game_sim_cfg.sv_standable_normal)
+        if (initial_tr.results.DidHit() && initial_tr.results.plane_normal.z() >= g_csgo_game_sim_cfg.sv_standable_normal) //DEPDEPH7per: Need this for subtick to work properly, else you get stucked sometimes.
         {
             put_player_on_ground = true;
             ground_surface = initial_tr.results.surface;
@@ -1669,6 +1669,10 @@ void CsgoMovement::CategorizePosition(float frametime)
                         // -> Prevent the player from being grounded this tick.
                         put_player_on_ground = false;
                     }
+                }
+                if (m_vecVelocity.normalized().z() > cos(M_PI / 4)) // H7per: ensure player doesn't randomly ledgegrab. Real issue with subtick
+                {
+                    put_player_on_ground = false;
                 }
             }
         } // End of DZSimulator fix

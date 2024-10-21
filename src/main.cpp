@@ -1450,7 +1450,7 @@ void DZSimApplication::DoUpdate()
         // Send game input to simulation
         auto game_sim_start_time = std::chrono::high_resolution_clock::now();
         _csgo_game_sim.UpdateTimescale(SIM_TIME_SCALE);
-        _csgo_game_sim.ProcessNewPlayerInput(player_inputs);
+        _csgo_game_sim.ProcessNewPlayerInput(player_inputs, _gui.state.testing.IN_subtick);
         auto game_sim_end_time = std::chrono::high_resolution_clock::now();
 
         // Maybe add # of simulated ticks to perf stats?
@@ -1558,6 +1558,7 @@ void DZSimApplication::drawEvent() {
         // World renderer needs server-side player position and velocity to
         // optimally visualize surface slidability
         hori_player_speed = _latest_csgo_server_data.player_vel.xy().length();
+
         player_feet_pos   = _latest_csgo_server_data.player_pos_feet;
         // When we are in overlay mode, the client-side eye position makes for
         // a smoother overlay compared to the server-side eye position!
@@ -1565,7 +1566,12 @@ void DZSimApplication::drawEvent() {
     }
     // If we render from our game simulation's POV
     else if (_csgo_game_sim.HasBeenStarted()) {
+
         hori_player_speed = _csgo_game_sim.GetLatestActualWorldState().csgo_mv.m_vecVelocity.xy().length();
+        if(_gui_state.testing.IN_subtick)
+            hori_player_speed = _csgo_game_sim.GetLatestDrawableWorldState().csgo_mv.m_vecVelocity.xy().length();
+
+
         player_feet_pos = _csgo_game_sim.GetLatestDrawableWorldState().csgo_mv.m_vecAbsOrigin;
         cam_pos         = _csgo_game_sim.GetLatestDrawableWorldState().csgo_mv.m_vecAbsOrigin +
                           _csgo_game_sim.GetLatestDrawableWorldState().csgo_mv.m_vecViewOffset;

@@ -13,6 +13,14 @@
 #include "sim/PlayerInput.h"
 #include "sim/Sim.h"
 
+struct CsgoSubtickStep
+{
+    uint64_t inputBitmask;
+    int tick;
+    float when;
+};
+
+
 namespace sim {
 
 class WorldState {
@@ -45,7 +53,7 @@ public:
     // forward in simulation time by the given duration.
     // CAUTION: Must not be called on an interpolated worldstate!
     void AdvanceSimulation(SimTimeDur simtime_delta,
-                           std::span<const PlayerInput::State> chro_input);
+                           std::span<const PlayerInput::State> chro_input, std::vector<CsgoSubtickStep> SubtickSteps = {}, float fraction = 1.0f);
 
 };
 

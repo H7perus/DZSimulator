@@ -11,6 +11,8 @@
 #include "sim/Sim.h"
 #include "sim/WorldState.h"
 
+
+
 namespace sim {
 
 // Responsible for simulating game ticks of a CSGO game/match using the player's
@@ -45,9 +47,7 @@ public:
     // simulation. Given player input must be new (i.e. have a time point that
     // chronologically comes after all previously passed inputs' time point)!
     // This method must be called after this CSGO game was started!
-    void ProcessNewPlayerInput(const PlayerInput::State& new_player_input);
-
-    // Returns the current actual (non-interpolated) state of the game
+    void ProcessNewPlayerInput(const PlayerInput::State& new_player_input, bool subticked = true); // Returns the current actual (non-interpolated) state of the game
     // simulation, computed by a recent call to ProcessNewPlayerInput().
     // This method must be called after this CSGO game was started!
     // CAUTION: Returned reference stays valid until this CsgoGame instance is
@@ -67,6 +67,10 @@ private:
     WallClock::time_point GetGameTickRealTimePoint(size_t tick_id);
 
 private:
+
+    std::vector<CsgoSubtickStep> prevSubtickSteps; // H7per: both required, as CS2 does cross-tick referencing for things like acceleration and jumping.
+    std::vector<CsgoSubtickStep> SubtickSteps;
+
     SimTimeDur m_simtime_step_size; // Simulation time increase every game tick
     WallClock::duration m_realtime_game_tick_interval;
 

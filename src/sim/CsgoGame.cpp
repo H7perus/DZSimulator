@@ -101,7 +101,7 @@ void CsgoGame::ModifyWorldStateHarshly(const std::function<void(WorldState&)>& f
         GetGameTickRealTimePoint(m_prev_finalized_game_tick_id);
 }
 
-void CsgoGame::ProcessNewPlayerInput(const PlayerInput::State& new_input)
+void CsgoGame::ProcessNewPlayerInput(const PlayerInput::State& new_input, bool subticked)
 {
     ZoneScoped;
 
@@ -121,6 +121,7 @@ void CsgoGame::ProcessNewPlayerInput(const PlayerInput::State& new_input)
 #endif
     
     WallClock::time_point cur_time = new_input.sample_time;
+
 
     // @Optimization We should drop game ticks if the user's machine struggles
     //               to keep up. How does the Source engine do it?
@@ -143,17 +144,26 @@ void CsgoGame::ProcessNewPlayerInput(const PlayerInput::State& new_input)
     // game tick by simply copying the previously predicted game tick!
     // This is possible because it's certain that no new player inputs relevant
     // to that first tick advancement were generated.
-    if (m_prev_finalized_game_tick_id < directly_preceding_game_tick_id) {
+
+    //H7per: Deprecating this, because it doesn't work with changing tick fractions.
+    /*if (m_prev_finalized_game_tick_id < directly_preceding_game_tick_id) {
+
         m_prev_finalized_game_tick = std::move(m_prev_predicted_game_tick);
         m_prev_finalized_game_tick_id++;
         m_inputs_since_prev_finalized_game_tick.clear();
-    }
+        prevSubtickSteps = SubtickSteps;
+        SubtickSteps.clear();
+    }*/
+
 
     // Next, possibly advance by additional # of game ticks.
     // These additional game ticks have passed completely without any calls to
     // ProcessNewPlayerInput(), so they receive no player input.
     while (m_prev_finalized_game_tick_id < directly_preceding_game_tick_id) {
-        m_prev_finalized_game_tick.AdvanceSimulation(m_simtime_step_size, {});
+        m_prev_finalized_game_tick.AdvanceSimulation(m_simtime_step_size, m_inputs_since_prev_finalized_game_tick, SubtickSteps);
+        m_inputs_since_prev_finalized_game_tick.clear();
+        prevSubtickSteps = SubtickSteps;
+        SubtickSteps.clear();
         m_prev_finalized_game_tick_id++;
     }
     // NOTE: m_prev_predicted_game_tick has now become invalid if we advanced by
@@ -162,10 +172,54 @@ void CsgoGame::ProcessNewPlayerInput(const PlayerInput::State& new_input)
     // Step 3: Predict the next future game tick using the new player input (and
     //         possibly previous inputs of the current unfinalized game tick).
     m_inputs_since_prev_finalized_game_tick.push_back(new_input);
+    
+    //if (new_input.scrollwheel_jumped) //H7per: Gotta allow scroll jump
+    //{
+    //    printf("");
+    //}
+
+
+    if ((SubtickSteps.empty() && m_prev_finalized_game_tick.prev_input.nButtons != new_input.nButtons) || !SubtickSteps.empty() && SubtickSteps.back().inputBitmask != new_input.nButtons || new_input.scrollwheel_jumped)
+    {
+        float curr_when = (float)(cur_time - m_realtime_last_tick).count() / (float)m_realtime_game_tick_interval.count();
+        CsgoSubtickStep newStep;
+        newStep.inputBitmask = new_input.nButtons;
+        newStep.when = curr_when;
+        if(!subticked)
+            newStep.when = 0;
+        newStep.tick = m_prev_finalized_game_tick_id;
+
+        if (new_input.scrollwheel_jumped) //H7per: Gotta allow scroll jump
+        {
+            newStep.inputBitmask |= (2);
+            if (subticked)
+            {
+                SubtickSteps.push_back(newStep);
+                newStep.inputBitmask = newStep.inputBitmask & ~(2);
+            }
+                
+        }
+
+        SubtickSteps.push_back(newStep);
+
+        if (SubtickSteps.size() > 1)
+        {
+            if (SubtickSteps.back().when < SubtickSteps.end()[-2].when)
+            {
+                printf("ALARM!");
+            }
+        }
+    }
+    
+    if (SubtickSteps.size() > 0)
+    {
+        printf("");
+    }
 
     WorldState predicted_next_game_tick = m_prev_finalized_game_tick;
-    predicted_next_game_tick.AdvanceSimulation(m_simtime_step_size,
-                                               m_inputs_since_prev_finalized_game_tick);
+    if(!subticked)
+        predicted_next_game_tick.AdvanceSimulation( m_simtime_step_size,
+                                                    m_inputs_since_prev_finalized_game_tick, SubtickSteps);
 
     WallClock::time_point next_game_tick_timepoint = m_realtime_last_tick + m_realtime_game_tick_interval;
 
@@ -184,17 +238,47 @@ void CsgoGame::ProcessNewPlayerInput(const PlayerInput::State& new_input)
         //                        range! Handle that.
         WallClock::duration interpRange = next_game_tick_timepoint - m_prev_drawable_worldstate_timepoint;
         WallClock::duration interpStep  =                 cur_time - m_prev_drawable_worldstate_timepoint;
+
+        if (subticked)
+        {
+            interpRange = next_game_tick_timepoint - m_realtime_last_tick;
+            interpStep = cur_time - m_realtime_last_tick;
+        }
+
         using nano = std::chrono::nanoseconds;
         float interpRange_ns = std::chrono::duration_cast<nano>(interpRange).count();
         float interpStep_ns  = std::chrono::duration_cast<nano>(interpStep ).count();
-        if (interpRange_ns == 0.0f) {
-            cur_drawable_worldstate = predicted_next_game_tick;
-        } else {
-            float phase = interpStep_ns / interpRange_ns;
-            cur_drawable_worldstate = WorldState::Interpolate(m_prev_drawable_worldstate,
-                                                              predicted_next_game_tick,
-                                                              phase);
+        float phase = interpStep_ns / interpRange_ns;
+
+
+        if (phase > 0.45 && phase < 0.55)
+        {
+            printf("");
         }
+
+        printf("%i, %i, %f", m_prev_predicted_game_tick.simtime, predicted_next_game_tick.simtime, phase, "\n");
+
+        if (subticked)
+        {
+
+            cur_drawable_worldstate = m_prev_finalized_game_tick;
+            cur_drawable_worldstate.AdvanceSimulation(m_simtime_step_size,
+                m_inputs_since_prev_finalized_game_tick, SubtickSteps, phase);
+        }
+        else
+        {
+            if (interpRange_ns == 0.0f) {
+                cur_drawable_worldstate = predicted_next_game_tick;
+            }
+            else {
+
+                cur_drawable_worldstate = WorldState::Interpolate(m_prev_drawable_worldstate,
+                    predicted_next_game_tick,
+                    phase);
+            }
+        }
+
+
     }
     else { // ENABLE_INTERPOLATION_OF_DRAWN_WORLDSTATE == false
         // Instead of interpolating, just draw the last finalized game tick
@@ -203,7 +287,11 @@ void CsgoGame::ProcessNewPlayerInput(const PlayerInput::State& new_input)
 
     // Remember for user access and future ProcessNewPlayerInput() calls
     m_prev_predicted_game_tick           = std::move(predicted_next_game_tick);
+    if(subticked){
+        m_prev_predicted_game_tick           = std::move(cur_drawable_worldstate);
+    }
     m_prev_drawable_worldstate           = std::move(cur_drawable_worldstate);
+
     m_prev_drawable_worldstate_timepoint = cur_time;
 }
 

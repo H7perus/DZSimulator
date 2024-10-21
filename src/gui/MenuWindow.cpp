@@ -1241,10 +1241,14 @@ void MenuWindow::DrawTestSettings()
     ImGui::SliderFloat("Time Scale",
         &_gui_state.testing.IN_slider1, 0.01f, 10.f, "%.3f");
     _gui_state.testing.IN_slider1 = std::max(_gui_state.testing.IN_slider1, 0.01f);
-    
+
+    ImGui::Checkbox(" Subtick", &_gui_state.testing.IN_subtick);
+
+
 
     ImGui::SliderFloat("Slider 2",
         &_gui_state.testing.IN_slider2, 0.0f, 5.0f, "%.3f");
+
 
     ImGui::SliderFloat("Slider 3",
         &_gui_state.testing.IN_slider3, 0.0f, 10.0f, "%.3f");

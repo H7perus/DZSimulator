@@ -77,12 +77,17 @@ WorldState WorldState::Interpolate(const WorldState& stateA,
 }
 
 void WorldState::AdvanceSimulation(SimTimeDur simtime_delta,
-                                   std::span<const PlayerInput::State> chro_input)
+    std::span<const PlayerInput::State> chro_input, std::vector<CsgoSubtickStep> SubtickSteps, float fraction) //H7per: fraction is needed so you can do less than full timesteps for per-frame-prediction properly
 {
     ZoneScoped;
 
     assert(!is_interpolated); // We shouldn't simulate interpolated world states
 
+    assert(fraction <= 1.0f); //H7per: This shouldn't happen but lets be sure.
+    if (SubtickSteps.size())
+    {
+        assert(SubtickSteps.back().when <= fraction);
+    }
     // Advance this worldstate's simulation time point. This must happen early
     // to let the following simulation code know at what point in time we are.
     simtime += simtime_delta;
@@ -166,38 +171,72 @@ void WorldState::AdvanceSimulation(SimTimeDur simtime_delta,
     }
 
     // Let movement class know about player's equipment
-    csgo_mv.m_loadout = player.loadout;
 
-    csgo_mv.m_flForwardMove = 0.0f;
-    if (csgo_mv.m_nButtons & IN_FORWARD)
-        csgo_mv.m_flForwardMove += g_csgo_game_sim_cfg.cl_forwardspeed;
-    if (csgo_mv.m_nButtons & IN_BACK)
-        csgo_mv.m_flForwardMove -= g_csgo_game_sim_cfg.cl_backspeed;
+    float prev_when = 0.0;
+    bool already_stepped = false;
 
-    csgo_mv.m_flSideMove = 0.0f;
-    if (csgo_mv.m_nButtons & IN_MOVERIGHT)
-        csgo_mv.m_flSideMove += g_csgo_game_sim_cfg.cl_sidespeed;
-    if (csgo_mv.m_nButtons & IN_MOVELEFT)
-        csgo_mv.m_flSideMove -= g_csgo_game_sim_cfg.cl_sidespeed;
+    used_input = prev_input;
 
-    // -------- start of source-sdk-2013 code --------
-    // (taken and modified from source-sdk-2013/<...>/src/game/shared/gamemovement.cpp)
-    // (Original code found in ProcessMovement() function)
 
-    // Cropping movement speed scales mv->m_fForwardSpeed etc. globally
-    // Once we crop, we don't want to recursively crop again, so we set the crop
-    //  flag globally here once per usercmd cycle.
-    csgo_mv.m_iSpeedCropped = SPEED_CROPPED_RESET;
+    for (int step = 0; step <= SubtickSteps.size(); step++)
+    {
+        float curr_stepinterval;
+        if (SubtickSteps.size() > 1)
+        {
+            printf("debug");
+        }
 
-    // Init max speed depending on weapons equipped by player
-    csgo_mv.m_flMaxSpeed =
-        g_csgo_game_sim_cfg.GetMaxPlayerRunningSpeed(player.loadout);
+        if (step < SubtickSteps.size())
+        {
+            csgo_mv.m_nButtons = used_input.nButtons;
+            curr_stepinterval = SubtickSteps[step].when - prev_when;
+            prev_when = SubtickSteps[step].when;
+            used_input.nButtons = SubtickSteps[step].inputBitmask;
+        }
+        else
+        {
+            curr_stepinterval = fraction - prev_when; // H7per: end sim where fraction ends
+            csgo_mv.m_nButtons = used_input.nButtons;
+            if(fraction == 1.0f) //H7per: doing this equal check is fine, since it will always be 1 for fullframe.
+                prev_input = used_input;
+        }
 
-    csgo_mv.PlayerMove(time_delta_sec);
-    csgo_mv.FinishMove();
+        
+
+        csgo_mv.m_loadout = player.loadout;
+
+        csgo_mv.m_flForwardMove = 0.0f;
+        if (csgo_mv.m_nButtons & IN_FORWARD)
+            csgo_mv.m_flForwardMove += g_csgo_game_sim_cfg.cl_forwardspeed;
+        if (csgo_mv.m_nButtons & IN_BACK)
+            csgo_mv.m_flForwardMove -= g_csgo_game_sim_cfg.cl_backspeed;
+
+        csgo_mv.m_flSideMove = 0.0f;
+        if (csgo_mv.m_nButtons & IN_MOVERIGHT)
+            csgo_mv.m_flSideMove += g_csgo_game_sim_cfg.cl_sidespeed;
+        if (csgo_mv.m_nButtons & IN_MOVELEFT)
+            csgo_mv.m_flSideMove -= g_csgo_game_sim_cfg.cl_sidespeed;
+
+        // -------- start of source-sdk-2013 code --------
+        // (taken and modified from source-sdk-2013/<...>/src/game/shared/gamemovement.cpp)
+        // (Original code found in ProcessMovement() function)
+
+        // Cropping movement speed scales mv->m_fForwardSpeed etc. globally
+        // Once we crop, we don't want to recursively crop again, so we set the crop
+        //  flag globally here once per usercmd cycle.
+        csgo_mv.m_iSpeedCropped = SPEED_CROPPED_RESET;
+
+        // Init max speed depending on weapons equipped by player
+        csgo_mv.m_flMaxSpeed =
+            g_csgo_game_sim_cfg.GetMaxPlayerRunningSpeed(player.loadout);
+
+        csgo_mv.PlayerMove(time_delta_sec * curr_stepinterval);
+        csgo_mv.FinishMove();
+    }
+    
     // --------- end of source-sdk-2013 code ---------
 
     // For the next call of AdvanceSimulation(), remember what player inputs we
     // used in the current simulation advancement.
-    prev_input = used_input;
+    //prev_input = used_input; //H7per: Lets try without these shenanigans, shall we?
 }
